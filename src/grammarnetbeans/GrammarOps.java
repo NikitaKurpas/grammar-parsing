@@ -1,138 +1,183 @@
 package grammarnetbeans;
 
 import grammar.*;
-
 import java.util.*;
-import java.util.stream.Collectors;
 
-/**
- * Implementace v�po�t� nad gramatikou
+/** Implementace v�po�t� nad gramatikou
  */
 public class GrammarOps {
 
-    Map<Nonterminal, Collection<Symbol>> first;
-
-    /**
-     * Vytvori instanci objektu a provede vypocet
-     */
+    /** Vytvori instanci objektu a provede vypocet */
     public GrammarOps(Grammar g) {
         this.g = g;
-        first = new HashMap<>();
         compute_empty();
-        prepareFirst();
-        dump();
-        solve(first);
-        dump();
+        compute_first_table();
+        compute_follow_table();
     }
 
-    private void prepareFirst() {
-        for (Rule rule : g.getRules()) {
-            if (!first.containsKey(rule.getLHS())) {
-                first.put(rule.getLHS(), new TreeSet<>());
-            }
-
-            Collection<Symbol> row = first.get(rule.getLHS());
-            for (Symbol symbol : rule.getRHS()) {
-                row.add(symbol);
-                if (symbol instanceof Terminal) {
-                    break;
-                } else if (symbol instanceof Nonterminal && !emptyNonterminals.contains(symbol)) {
-                    break;
-                }
-            }
-        }
+    /** Vrati mnozinu nonterminalu generujicich prazdne slovo
+     *  @return Mnozina symbolu typu Nonterminal.
+     */
+    public Set<Nonterminal> getEmptyNonterminals() {
+        return emptyNonterminals;
     }
 
-    private void solve(Map<Nonterminal, Collection<Symbol>> data) {
-        boolean isChanged = true;
-        while (isChanged) {
-            isChanged = false;
-            for (Nonterminal nonterminal : data.keySet()) {
-                Collection<Nonterminal> keys = data.get(nonterminal).stream()
-                        .filter(symbol -> symbol instanceof Nonterminal && symbol != nonterminal)
-                        .map(symbol -> (Nonterminal) symbol)
-                        .collect(Collectors.toCollection(TreeSet::new));
-                for (Nonterminal key : keys) {
-                    int size = data.get(nonterminal).size();
-                    data.get(nonterminal).addAll(data.get(key));
-                    if (data.get(nonterminal).size() > size) {
-                        isChanged = true;
-                    }
-                }
-            }
-        }
-    }
-
-    private void dump() {
-        System.out.println("FIRST");
-        first.forEach((nonterminal, symbols) -> {
-            System.out.println(" " + nonterminal.getName() + " -> " + symbols.toString());
-        });
-    }
-
-    public Collection<Terminal> computeFirst(Collection<Symbol> symbols) {
-        List<Terminal> result = new ArrayList<>();
-        for (Symbol symbol : symbols) {
-            if (symbol instanceof Terminal) {
-                result.add((Terminal) symbol);
-                break;
-            }
-            if (symbol instanceof Nonterminal) {
-                Collection<Symbol> firstSymbols = first.get(symbol);
-                if (firstSymbols == null) {
-                    continue;
-                }
-                result.addAll(
-                        firstSymbols.stream()
-                                .filter(s -> s instanceof Terminal)
-                                .map(s -> (Terminal) s)
-                                .collect(Collectors.toCollection(ArrayList::new))
-                );
-                if (!emptyNonterminals.contains(symbol)) {
-                    break;
+    public Set<Terminal> first(Collection<Symbol> rhs) {
+        TreeSet<Terminal> result = new TreeSet<Terminal>();
+        Set<Symbol> first = simulateFirst(rhs);
+        for (Symbol s : first) {
+            if (s instanceof Terminal) {
+                result.add((Terminal) s);
+            } else {
+                for (Symbol added : firstTable.get((Nonterminal) s)) {
+                    result.add((Terminal) added);
                 }
             }
         }
         return result;
     }
 
-    /**
-     * Vrati mnozinu nonterminalu generujicich prazdne slovo
-     *
-     * @return Mnozina symbolu typu Nonterminal.
-     */
-    public Set<Nonterminal> getEmptyNonterminals() {
-        return emptyNonterminals;
-    }
-
-    /**
-     * Vypocet mnoziny nonterminalu generujicich prazdne slovo.
+    /** Vypocet mnoziny nonterminalu generujicich prazdne slovo.
      */
     private void compute_empty() {
-        emptyNonterminals = new TreeSet<>();
+        emptyNonterminals = new TreeSet<Nonterminal>();
+        //TODO: Doplnit zde
         int size;
         do {
             size = emptyNonterminals.size();
-            for (Rule rule : g.getRules()) {
-                boolean test = true;
-                for (Symbol symbol : rule.getRHS()) {
-                    if (symbol instanceof Terminal || !emptyNonterminals.contains(symbol)) {
-                        test = false;
+
+            for (Rule r : g.getRules()) {
+                boolean empty = true;
+                for (Symbol s : r.getRHS()) {
+                    if (s instanceof Terminal) {
+                        empty = false;
+                    } else {
+                        if (!emptyNonterminals.contains(s)) {
+                            empty = false;
+                        }
                     }
                 }
-                if (test) {
-                    emptyNonterminals.add(rule.getLHS());
+                if (empty) {
+                    emptyNonterminals.add(r.getLHS());
                 }
             }
         } while (size != emptyNonterminals.size());
     }
-
-    /**
-     * Gramatika
-     */
+    /** Gramatika */
     Grammar g;
-    /**
-     * Mnozina nonterminalu generujicich prazdny retezec
-     */
+    /** Mnozina nonterminalu generujicich prazdny retezec */
     Set<Nonterminal> emptyNonterminals;
+    Terminal epsilon = new Terminal("epsilon");
+    TreeMap<Nonterminal, Set<Symbol>> firstTable = new TreeMap<Nonterminal, Set<Symbol>>();
+    TreeMap<Nonterminal, Set<Symbol>> followTable = new TreeMap<Nonterminal, Set<Symbol>>();
+
+    private Set<Symbol> simulateFirst(Collection<Symbol> rhs) {
+        TreeSet<Symbol> result = new TreeSet<Symbol>();
+        for (Symbol s : rhs) {
+            result.add(s);
+            if (s instanceof Terminal) {
+                return result;
+            } else {
+                if (!emptyNonterminals.contains(s)) {
+                    return result;
+                }
+            }
+        }
+        result.add(epsilon);
+        return result;
+    }
+
+    private Set<Symbol> simulateFollow(Nonterminal n) {
+        Set<Symbol> result = new TreeSet<Symbol>();
+        for (Rule r : g.getRules()) {
+            Object[] data = r.getRHS().toArray();
+            for (int i = 0; i < data.length; i++) {
+                if (data[i] == n) {
+                    ArrayList<Symbol> rest = new ArrayList<Symbol>();
+                    for (int j = i + 1; j < data.length; j++) {
+                        rest.add((Symbol) data[j]);
+                    }
+                    result.addAll(first(rest));
+                }
+            }
+            if (result.contains(epsilon)) {
+                result.remove(epsilon);
+                result.add(r.getLHS());
+            }
+        }
+        return result;
+    }
+
+    private void compute_first_table() {
+        for (Nonterminal n : g.getNonterminals()) {
+            firstTable.put(n, new TreeSet<Symbol>());
+            for (Rule r : n.getRules()) {
+                Set<Symbol> oneFirst = simulateFirst(r.getRHS());
+                oneFirst.remove(epsilon);
+                firstTable.get(n).addAll(oneFirst);
+            }
+        }
+        makeClosure(firstTable);
+        cleanTable(firstTable);
+    }
+
+    private void cleanTable(TreeMap<Nonterminal, Set<Symbol>> table) {
+        for (Nonterminal n : table.keySet()) {
+            table.get(n).removeAll(g.getNonterminals());
+        }
+    }
+
+    private void makeClosure(TreeMap<Nonterminal, Set<Symbol>> table) {
+        boolean repeat;
+        do {
+            repeat = false;
+
+            for (Nonterminal n : table.keySet()) {
+                Set<Symbol> tmp = new TreeSet<Symbol>();
+                for (Symbol s : table.get(n)) {
+                    if (s instanceof Nonterminal) {
+                        tmp.addAll(table.get(s));
+                    }
+                }
+                int size = table.get(n).size();
+                table.get(n).addAll(tmp);
+                repeat |= size != table.get(n).size();
+            }
+        } while (repeat);
+    }
+
+    private void compute_follow_table() {
+        for (Nonterminal n : g.getNonterminals()) {
+            followTable.put(n, simulateFollow(n));
+        }
+        followTable.get(g.getStartNonterminal()).add(epsilon);
+        makeClosure(followTable);
+        cleanTable(followTable);
+    }
+
+    Set<Terminal> follow(Nonterminal n) {
+        Set<Terminal> result = new TreeSet<Terminal>();
+        for (Symbol s : followTable.get(n)) {
+            result.add((Terminal) s);
+        }
+        return result;
+    }
+
+    public boolean isLL1() {
+        for (Nonterminal n : g.getNonterminals()) {
+            int count=0;
+            Set<Terminal> all=new TreeSet<Terminal>();
+            for (Rule r : n.getRules()) {
+                Set<Terminal> select = first(r.getRHS());
+                if (select.contains(epsilon)) {
+                    select.remove(epsilon);
+                    select.addAll(follow(n));
+                }
+                count+=select.size();
+                all.addAll(select);
+            }
+            if (count!=all.size()) return false;
+        }
+        return true;
+    }
 }

@@ -1,0 +1,109 @@
+/* volby gener�toru */
+options {
+    IGNORE_CASE = true;
+    DEBUG_PARSER = true;
+}
+
+/* t��da analyz�toru */
+PARSER_BEGIN(ExtendedCalc)
+
+public class ExtendedCalc {
+
+    public static void main(String args[])
+       throws ParseException
+    {
+       ExtendedCalc parser = new ExtendedCalc(System.in);
+       parser.start();
+    }
+
+}
+
+PARSER_END(ExtendedCalc)
+
+/* lexik�ln� analyz�tor */
+SKIP :
+{
+    " " | "\r" | "\t"
+}
+
+TOKEN :
+{
+    < EOL: "\n" >
+}
+
+TOKEN :
+{
+    < ADD: "+" > | < SUB: "-" >
+|   < MUL: "*" > | < DIV: "/" > | < MOD: "mod" >
+}
+
+TOKEN :
+{
+    < INTEGER_LITERAL:
+            <DECIMAL_LITERAL> (["l","L"])?
+          | <HEX_LITERAL> (["l","L"])?
+          | <OCTAL_LITERAL> (["l","L"])?
+      >
+    |
+      < #DECIMAL_LITERAL: ["1"-"9"] (["0"-"9"])* >
+    |
+      < #HEX_LITERAL: "0" ["x","X"] (["0"-"9","a"-"f","A"-"F"])+ >
+    |
+      < #OCTAL_LITERAL: "0" (["0"-"7"])* >
+}
+
+TOKEN :
+{
+    < SEMICOLON: ";" >
+}
+
+/* syntaktick� analyz�tor */
+void start() : {
+    int result;
+} {
+    (result = expr() ";" { System.out.println(result); } )* <EOF>
+}
+
+int expr() : {
+    int result, tmp;
+    Token t;
+} {
+    result = term()
+    (
+        ( t = "+" | t = "-" ) tmp = term()
+        {
+            if (t.toString().equals("+")) result += tmp;
+            else result -= tmp;
+        }
+    )*
+    { return result; }
+}
+
+int term() : {
+    int result, tmp;
+    Token t;
+} {
+    result = factor()
+    (
+        (t = "*" | t = "/" | t = "mod") tmp = factor()
+        {
+            if (t.toString().equals("*")) result *= tmp;
+            else if (t.toString().equals("/")) result /= tmp;
+            else result %= tmp;
+        }
+    )*
+    { return result; }
+}
+
+int factor() : {
+    int result;
+    Token t;
+} {
+    (
+        t = <INTEGER_LITERAL> {
+            result = Integer.decode(t.toString()).intValue();
+        }
+        | "(" result = expr() ")"
+    )
+    { return result; }
+}

@@ -1,0 +1,62 @@
+/* volby gener�toru */
+options {
+    IGNORE_CASE = true;
+    DEBUG_PARSER = true;
+}
+
+/* t��da analyz�toru */
+PARSER_BEGIN(Calc)
+
+public class Calc {
+
+    public static void main(String args[])
+       throws ParseException
+    {
+       Calc parser = new Calc(System.in);
+       parser.expr();
+    }
+
+}
+
+PARSER_END(Calc)
+
+/* lexik�ln� analyz�tor */
+SKIP :
+{
+    " " | "\r" | "\t"
+}
+
+TOKEN :
+{
+    < EOL: "\n" >
+}
+
+TOKEN :
+{
+    < ADD: "+" > | < SUB: "-" >
+|   < MUL: "*" > | < DIV: "/" > | < MOD: "mod" >
+}
+
+TOKEN :
+{
+    < CONSTANT: ( <DIGIT> )+ >
+|   < #DIGIT: ["0" - "9"] >
+}
+
+TOKEN :
+{
+    < SEMICOLON: ";" >
+}
+
+/* syntaktick� analyz�tor */
+void expr() : { } {
+    term() (( "+" | "-" ) term())*
+}
+
+void term() : { } {
+    factor() (("*" | "/" | "mod") factor())*
+}
+
+void factor() : { } {
+    <CONSTANT> | "(" expr() ")"
+}

@@ -45,6 +45,6 @@ public class Test {
 		}
 		System.out.println();
 		List<Symbol> symbols = Arrays.asList(new Nonterminal("E"), new Terminal("d"), new Terminal("a"));
-		System.out.println(go.computeFirst(symbols).toString());
+		System.out.println(go.first(symbols).toString());
 	}
 }
