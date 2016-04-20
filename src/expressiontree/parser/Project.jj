@@ -93,8 +93,10 @@ TOKEN :
 | < IF: "if" >
 | < THEN: "then" >
 | < ELSE: "else" >
+| < BEGIN: "begin" >
 | < END: "end" >
 | < WHILE: "while" >
+| < FOR: "for" >
 | < DO: "do" >
 }
 /* LITERALS */
@@ -186,7 +188,7 @@ BlockOfStatements block() : {
   {return bofs;}
 }
 Statement statement() : {
-    Statement s = null;
+    Statement s = null, s1=null, s2=null;
     BlockOfStatements b1=null, b2=null;
     Token t;
     Token ident;
@@ -232,6 +234,8 @@ Statement statement() : {
         }
   )|(
     <WHILE> e=expr() <DO> b1=block() <END> ";" { s=new WhileStatement(e,b1);}
+  )|(
+    <FOR> "(" s1=statement() e=expr() ";" s2=statement() ")" <BEGIN> b1=block() <END> ";" { s=new ForStatement(s1,e,s2,b1); }
   ))
     {return s;}
 }

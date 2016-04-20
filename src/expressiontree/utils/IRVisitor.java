@@ -24,4 +24,5 @@ public interface  IRVisitor {
     public void visit(UnaryExpression exp);
     public void visit(Variable exp);
     public void visit(WhileStatement st);
+    public void visit(ForStatement st);
 }

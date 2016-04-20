@@ -61,6 +61,7 @@ public class Parser implements ParserConstants {
       case PRINT:
       case IF:
       case WHILE:
+      case FOR:
       case IDENTIFIER:
       case SEMICOLON:{
         ;
@@ -77,7 +78,7 @@ if (s!=null) bofs.getStatements().add(s);
     throw new Error("Missing return statement in function");
   }
 
-  final public Statement statement() throws ParseException {Statement s = null;
+  final public Statement statement() throws ParseException {Statement s = null, s1=null, s2=null;
     BlockOfStatements b1=null, b2=null;
     Token t;
     Token ident;
@@ -219,6 +220,21 @@ s=new IfStatement(e,b1,b2);
       jj_consume_token(END);
       jj_consume_token(SEMICOLON);
 s=new WhileStatement(e,b1);
+      break;
+      }
+    case FOR:{
+      jj_consume_token(FOR);
+      jj_consume_token(LPAREN);
+      s1 = statement();
+      e = expr();
+      jj_consume_token(SEMICOLON);
+      s2 = statement();
+      jj_consume_token(RPAREN);
+      jj_consume_token(BEGIN);
+      b1 = block();
+      jj_consume_token(END);
+      jj_consume_token(SEMICOLON);
+s=new ForStatement(s1,e,s2,b1);
       break;
       }
     default:
@@ -551,10 +567,10 @@ e=table.load(t.toString());
       jj_la1_init_1();
    }
    private static void jj_la1_init_0() {
-      jj_la1_0 = new int[] {0x8239e00,0x1e00,0x0,0x0,0x0,0x80000,0x8239e00,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x4d806000,0x4d806000,};
+      jj_la1_0 = new int[] {0x20c39e00,0x1e00,0x0,0x0,0x0,0x80000,0x20c39e00,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x36006000,0x36006000,};
    }
    private static void jj_la1_init_1() {
-      jj_la1_1 = new int[] {0x1,0x0,0x2,0x2,0x2,0x0,0x1,0x80,0x2000,0x4000,0x1e18,0x1e18,0x18040,0x18040,0xe0000,0xe0000,0x18020,0x18020,0x0,};
+      jj_la1_1 = new int[] {0x4,0x0,0x8,0x8,0x8,0x0,0x4,0x200,0x8000,0x10000,0x7860,0x7860,0x60100,0x60100,0x380000,0x380000,0x60080,0x60081,0x1,};
    }
 
   /** Constructor with InputStream. */
@@ -671,7 +687,7 @@ e=table.load(t.toString());
   /** Generate ParseException. */
   public ParseException generateParseException() {
     jj_expentries.clear();
-    boolean[] la1tokens = new boolean[52];
+    boolean[] la1tokens = new boolean[54];
     if (jj_kind >= 0) {
       la1tokens[jj_kind] = true;
       jj_kind = -1;
@@ -688,7 +704,7 @@ e=table.load(t.toString());
         }
       }
     }
-    for (int i = 0; i < 52; i++) {
+    for (int i = 0; i < 54; i++) {
       if (la1tokens[i]) {
         jj_expentry = new int[1];
         jj_expentry[0] = i;
