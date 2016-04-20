@@ -1,0 +1,343 @@
+options {
+    IGNORE_CASE = true;
+    DEBUG_PARSER = false;
+    STATIC=false;
+}
+
+PARSER_BEGIN(Parser)
+package expressiontree.parser;
+
+import expressiontree.ir.*;
+import expressiontree.utils.*;
+
+public class Parser {
+
+    private SymbolTable table = new SymbolTable();
+
+    public static void main(String args[]) {
+        Parser parser;
+        if (args.length == 0) {
+          System.out.println("Parser Version 1.0:  Reading from standard input . . .");
+          parser = new Parser(System.in);
+        } else if (args.length == 1) {
+          System.out.println("Parser Version 1.0:  Reading from file " + args[0] + " . . .");
+          try {
+            parser = new Parser(new java.io.FileInputStream(args[0]));
+          } catch (java.io.FileNotFoundException e) {
+            System.out.println("Parser Version 1.0:  File " + args[0] + " not found.");
+            return;
+          }
+        } else {
+          System.out.println("Parser Version 1.0:  Usage is one of:");
+          System.out.println("         java Parser < inputfile");
+          System.out.println("OR");
+          System.out.println("         java Parser inputfile");
+          return;
+        }
+        try {
+          BlockOfStatements bos = parser.start();
+          IRVisitor visitor = new NicePrintingVisitor();
+          bos.accept(visitor);
+          System.out.println(visitor.toString());
+          System.out.println("Parser Version 1.0:  program parsed successfully.");
+        } catch (ParseException e) {
+          System.out.println(e.getMessage());
+          System.out.println("Parser Version 1.0:  Encountered errors during parse.");
+        }
+      }
+
+}
+
+PARSER_END(Parser)
+
+
+/* WHITE SPACE */
+
+SKIP :
+{
+  " "
+| "\t"
+| "\n"
+| "\r"
+| "\f"
+}
+
+/* COMMENTS */
+
+MORE :
+{
+  "//" : IN_SINGLE_LINE_COMMENT
+}
+
+<IN_SINGLE_LINE_COMMENT>
+SPECIAL_TOKEN :
+{
+  <SINGLE_LINE_COMMENT: "\n" | "\r" | "\r\n" > : DEFAULT
+}
+
+<IN_SINGLE_LINE_COMMENT,IN_FORMAL_COMMENT,IN_MULTI_LINE_COMMENT>
+MORE :
+{
+  < ~[] >
+}
+TOKEN :
+{
+  < INT: "int" >
+| < FLOAT: "float" >
+| < BOOLEAN: "boolean" >
+| < STRING: "String" >
+| < TRUE: "True" >
+| < FALSE: "False" >
+| < READ: "read" >
+| < PRINT: "print" >
+| < IF: "if" >
+| < THEN: "then" >
+| < ELSE: "else" >
+| < END: "end" >
+| < WHILE: "while" >
+| < DO: "do" >
+}
+/* LITERALS */
+
+TOKEN :
+{
+  < INTEGER_LITERAL: (["0"-"9"])+>
+|
+  < FLOATING_POINT_LITERAL:
+        (["0"-"9"])+ "." (["0"-"9"])* (<EXPONENT>)? 
+      | (["0"-"9"])+ <EXPONENT> 
+  >
+|
+  < #EXPONENT: ["e","E"] (["+","-"])? (["0"-"9"])+ >
+|
+  < STRING_LITERAL:
+      "\""
+      (   (~["\"","\\","\n","\r"])
+        | ("\\"
+            ( ["n","t","b","r","f","\\","'","\""]
+            | ["0"-"7"] ( ["0"-"7"] )?
+            | ["0"-"3"] ["0"-"7"] ["0"-"7"]
+            )
+          )
+      )*
+      "\""
+  >
+}
+TOKEN :
+{
+  < IDENTIFIER: <LETTER> (<PART_LETTER>)* >
+|
+  < #LETTER:["A"-"Z","_","a"-"z"]>
+|
+  < #PART_LETTER:["0"-"9","A"-"Z","_","a"-"z"]>
+}
+
+/* SEPARATORS */
+
+TOKEN :
+{
+  < LPAREN: "(" >
+| < RPAREN: ")" >
+| < SEMICOLON: ";" >
+| < COMMA: "," >
+}
+
+/* OPERATORS */
+
+TOKEN :
+{
+  < ASSIGN: "=" >
+| < GT: ">" >
+| < LT: "<" >
+| < BANG: "!" >
+| < DOT: "." >
+| < HOOK: "?" >
+| < COLON: ":" >
+| < EQ: "==" >
+| < LE: "<=" >
+| < GE: ">=" >
+| < NE: "!=" >
+| < SC_OR: "||" >
+| < SC_AND: "&&" >
+| < PLUS: "+" >
+| < MINUS: "-" >
+| < STAR: "*" >
+| < SLASH: "/" >
+| < REM: "%" >
+}
+
+
+BlockOfStatements start() : {
+  BlockOfStatements result;
+} {
+  result=block() <EOF>
+    {return result;}
+}
+
+BlockOfStatements block() : {
+    BlockOfStatements bofs = new BlockOfStatements();
+    Statement s;
+} {
+  
+  (s=statement()
+    { if (s!=null) bofs.getStatements().add(s);}
+  )* 
+
+  {return bofs;}
+}
+Statement statement() : {
+    Statement s = null;
+    BlockOfStatements b1=null, b2=null;
+    Token t;
+    Token ident;
+    Expression e;
+    Variable v;
+} {
+  ((
+    ";"
+  )|(
+    (t=<INT>|t=<FLOAT>|t=<BOOLEAN>|t=<STRING>) 
+              ident=<IDENTIFIER> { table.save(new Variable(ident.toString()));}
+    ("," ident=<IDENTIFIER> { table.save(new Variable(ident.toString()));} )* ";"
+  )|(
+    ident=<IDENTIFIER> "=" e=expr() ";" 
+        {
+            v = table.load(ident.toString());
+            if (v!=null) s = new AssignmentStatement(v, e);
+        }
+  )|(
+    <PRINT> e=expr() 
+        { 
+            s = new PrintStatement();
+            ((PrintStatement)s).getExpressions().add(e);
+        }
+    ("," e=expr() {((PrintStatement)s).getExpressions().add(e);})* ";"
+  )|(
+    <READ> ident=<IDENTIFIER> 
+        {
+            s = new ReadStatement();
+            v = table.load(ident.toString());
+            if (v!=null) ((ReadStatement)s).getVariables().add(v);
+        }
+    ("," ident=<IDENTIFIER>
+        {
+            v = table.load(ident.toString());
+            if (v!=null) ((ReadStatement)s).getVariables().add(v);
+        }
+    )* ";"
+  )|(
+    <IF> e=expr() <THEN> b1=block() [<ELSE> b2=block() ]<END> ";" 
+        {
+            s=new IfStatement(e,b1,b2);
+        }
+  )|(
+    <WHILE> e=expr() <DO> b1=block() <END> ";" { s=new WhileStatement(e,b1);}
+  ))
+    {return s;}
+}
+/*
+ * Expression syntax follows.
+ */
+
+Expression expr() : {
+    Expression e;
+} {
+  e = ConditionalExpression()
+    {return e;}
+}
+Expression ConditionalExpression() : {
+    Expression e, tmp1, tmp2;
+} {
+  e = ConditionalOrExpression() 
+  [ "?" tmp1=expr() ":" tmp2=ConditionalExpression()
+    {
+        e = new TernaryExpression(e,tmp1,tmp2);
+    }
+  ]
+  {return e;}
+}
+Expression ConditionalOrExpression() : {
+    Expression e,tmp;
+} {
+  e=ConditionalAndExpression() 
+  ( "||" tmp=ConditionalAndExpression() 
+    {
+        e = new BinaryExpression(e, "||", tmp);
+    }
+  )*
+  {return e;}
+}
+Expression ConditionalAndExpression() : {
+    Expression e,tmp;
+} {
+  e=RelationalExpression() 
+    ( "&&" tmp = RelationalExpression() 
+        {
+            e=new BinaryExpression(e,"&&", tmp);
+        }
+    )*
+    { return e;}
+}
+Expression RelationalExpression() : {
+    Expression e,tmp;
+    Token t;
+} {
+  e=AdditiveExpression() 
+  ( ( t="==" | t="!=" | t="<" | t=">" | t="<=" | t=">=" ) tmp=AdditiveExpression() 
+    {
+        e = new BinaryExpression(e,t.toString(),tmp);
+    }
+  )*
+    {return e;}
+}
+Expression AdditiveExpression() : {
+    Expression e,tmp;
+    Token t;
+} {
+  e = MultiplicativeExpression() ( ( t="+" | t="-"|t="." ) tmp=MultiplicativeExpression()
+    {e = new BinaryExpression(e,t.toString(),tmp);}
+ )*
+ {return e;}
+}
+Expression MultiplicativeExpression() : {
+    Expression e,tmp;
+    Token t;
+} {
+  e=UnaryExpression() 
+  ( ( t="*" | t="/" | t="%" ) tmp = UnaryExpression() 
+    {e=new BinaryExpression(e,t.toString(),tmp);}
+  )*
+    {return e;}
+}
+Expression UnaryExpression() : {
+    Expression e;
+    Token t;
+}
+{
+  ((( t="+" | t="-" |t="!" ) e=Literal() {e=new UnaryExpression(t.toString(), e);})
+|
+  e=Literal())
+    {return e;}
+}
+
+Expression Literal() : {
+    Expression e;
+    Token t;
+}
+{
+  (t=<INTEGER_LITERAL> { e = new Constant(Integer.decode(t.toString()), Type.INT);}
+|
+  t=<FLOATING_POINT_LITERAL> { e = new Constant(Double.parseDouble(t.toString()), Type.FLOAT);}
+|
+  t=<STRING_LITERAL> { e = new Constant(t.toString(), Type.STRING);}
+|
+  t=<TRUE> { e = new Constant(true, Type.BOOLEAN);}
+|
+  t=<FALSE> { e = new Constant(false, Type.BOOLEAN);}
+|
+  t=<IDENTIFIER> { e=table.load(t.toString());}
+|
+  "(" e=expr() ")"  )
+    {return e;}
+}
+

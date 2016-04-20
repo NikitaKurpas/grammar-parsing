@@ -1,0 +1,9 @@
+if 3<4 then write "Podminka funguje";
+else write "Podminka nefunguje"; end;
+
+int a;
+
+for(a=0; a<10; a=a+1) begin
+ write "a=",a;
+ a=a+1;
+end;

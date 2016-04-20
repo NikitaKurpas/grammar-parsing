@@ -1,8 +1,12 @@
 options {
   JAVA_UNICODE_ESCAPE = true;
+  DEBUG_PARSER = true;
 }
 
 PARSER_BEGIN(JavaParser)
+
+import expressiontree.ir.*;
+import expressiontree.utils.*;
 
 public class JavaParser {
 
@@ -51,8 +55,6 @@ SKIP :
 | "\f"
 }
 
-/* COMMENTS */
-
 MORE :
 {
   "//" : IN_SINGLE_LINE_COMMENT
@@ -64,19 +66,7 @@ SPECIAL_TOKEN :
   <SINGLE_LINE_COMMENT: "\n" | "\r" | "\r\n" > : DEFAULT
 }
 
-<IN_FORMAL_COMMENT>
-SPECIAL_TOKEN :
-{
-  <FORMAL_COMMENT: "*/" > : DEFAULT
-}
-
-<IN_MULTI_LINE_COMMENT>
-SPECIAL_TOKEN :
-{
-  <MULTI_LINE_COMMENT: "*/" > : DEFAULT
-}
-
-<IN_SINGLE_LINE_COMMENT,IN_FORMAL_COMMENT,IN_MULTI_LINE_COMMENT>
+<IN_SINGLE_LINE_COMMENT>
 MORE :
 {
   < ~[] >
@@ -86,53 +76,30 @@ MORE :
 
 TOKEN :
 {
-  < ELSE: "else" >
-| < FALSE: "false" >
-| < FLOAT: "float" >
-| < FOR: "for" >
-| < IF: "if" >
+  < IF: "if" >
+| < THEN: "then" >
+| < ELSE: "else" >
+| < END: "end" >
+| < FALSE: "False" >
+| < TRUE: "True" >
 | < INT: "int" >
-| < INTERFACE: "interface" >
-| < LONG: "long" >
-| < NATIVE: "native" >
-| < NEW: "new" >
-| < NULL: "null" >
-| < PACKAGE: "package">
-| < PRIVATE: "private" >
-| < PROTECTED: "protected" >
-| < PUBLIC: "public" >
-| < RETURN: "return" >
-| < SHORT: "short" >
-| < STATIC: "static" >
-| < SUPER: "super" >
-| < SWITCH: "switch" >
-| < SYNCHRONIZED: "synchronized" >
-| < THIS: "this" >
-| < THROW: "throw" >
-| < THROWS: "throws" >
-| < TRANSIENT: "transient" >
-| < TRUE: "true" >
-| < TRY: "try" >
-| < VOID: "void" >
-| < VOLATILE: "volatile" >
+| < FLOAT: "float" >
+| < BOOLEAN: "boolean" >
+| < STRING: "String" >
+| < FOR: "for" >
+| < BEGIN: "begin" >
 | < WHILE: "while" >
+| < READ: "read" >
+| < WRITE: "write" >
 }
 
 /* LITERALS */
 
 TOKEN :
 {
-  < INTEGER_LITERAL:
-        <DECIMAL_LITERAL> (["l","L"])?
-      | <HEX_LITERAL> (["l","L"])?
-      | <OCTAL_LITERAL> (["l","L"])?
-  >
+  < INTEGER_LITERAL: <DECIMAL_LITERAL> >
 |
-  < #DECIMAL_LITERAL: ["1"-"9"] (["0"-"9"])* >
-|
-  < #HEX_LITERAL: "0" ["x","X"] (["0"-"9","a"-"f","A"-"F"])+ >
-|
-  < #OCTAL_LITERAL: "0" (["0"-"7"])* >
+  < #DECIMAL_LITERAL: ["0"-"9"] (["0"-"9"])* >
 |
   < FLOATING_POINT_LITERAL:
         (["0"-"9"])+ "." (["0"-"9"])* (<EXPONENT>)? (["f","F","d","D"])?
@@ -228,11 +195,15 @@ TOKEN :
  * Program structuring syntax follows.
  */
 
-void CompilationUnit() :
-{}
+Statement CompilationUnit() :
 {
-  ( Expression() )*
+    Statement result;
+}
+{
+  { result = new BlockStatement(); }
+  ( { result.getStatements.add(Statement()); } )*
   <EOF>
+  { return result; }
 }
 
 void PrimitiveType() :
@@ -240,27 +211,11 @@ void PrimitiveType() :
 {
   "boolean"
 |
-  "char"
-|
-  "byte"
-|
-  "short"
-|
   "int"
-|
-  "long"
 |
   "float"
 |
-  "double"
-}
-
-void ResultType() :
-{}
-{
-  "void"
-|
-  Type()
+  "String"
 }
 
 void Name() :
@@ -271,16 +226,13 @@ void Name() :
 {}
 {
   <IDENTIFIER>
-  ( LOOKAHEAD(2) "." <IDENTIFIER>
-  )*
 }
 
 void NameList() :
 {}
 {
   Name()
-  ( "," Name()
-  )*
+  ( "," Name() )*
 }
 
 
@@ -309,73 +261,59 @@ void Expression() :
 void AssignmentOperator() :
 {}
 {
-  "=" | "*=" | "/=" | "%=" | "+=" | "-=" | "<<=" | ">>=" | ">>>=" | "&=" | "^=" | "|="
+  "="
 }
 
 void ConditionalExpression() :
 {}
 {
-  ConditionalOrExpression() [ "?" Expression() ":" ConditionalExpression() ]
+  ExpressionWithStrings() [ "?" Expression() ":" ConditionalExpression() ]
+}
+
+void ExpressionWithStrings() :
+{}
+{
+  LOOKAHEAD(2) StringConcatenationExpression() | ConditionalOrExpression()
 }
 
 void ConditionalOrExpression() :
 {}
 {
-  ConditionalAndExpression() ( "||" ConditionalAndExpression() )*
+  ConditionalAndExpression() ( ("||" | ".") ConditionalAndExpression() )*
 }
 
 void ConditionalAndExpression() :
 {}
 {
-  InclusiveOrExpression() ( "&&" InclusiveOrExpression() )*
-}
-
-void InclusiveOrExpression() :
-{}
-{
-  ExclusiveOrExpression() ( "|" ExclusiveOrExpression() )*
-}
-
-void ExclusiveOrExpression() :
-{}
-{
-  AndExpression() ( "^" AndExpression() )*
-}
-
-void AndExpression() :
-{}
-{
-  EqualityExpression() ( "&" EqualityExpression() )*
+  EqualityExpression() ( "&&" EqualityExpression() )*
 }
 
 void EqualityExpression() :
 {}
 {
-  InstanceOfExpression() ( ( "==" | "!=" ) InstanceOfExpression() )*
-}
-
-void InstanceOfExpression() :
-{}
-{
-  RelationalExpression() [ "instanceof" Type() ]
+  RelationalExpression() ( ( "==" | "!=" ) RelationalExpression() )*
 }
 
 void RelationalExpression() :
 {}
 {
-  ShiftExpression() ( ( "<" | ">" | "<=" | ">=" ) ShiftExpression() )*
+  ( AdditiveExpression() ) ( ( "<" | ">" | "<=" | ">=" ) AdditiveExpression() )*
 }
 
-void ShiftExpression() :
+void StringConcatenationExpression() :
 {}
 {
-  AdditiveExpression() ( ( "<<" | ">>" | ">>>" ) AdditiveExpression() )*
+  <STRING_LITERAL> ( "." <STRING_LITERAL> )+
 }
 
-void AdditiveExpression() :
-{}
+Expression AdditiveExpression() :
 {
-  MultiplicativeExpression() ( ( "+" | "-" ) MultiplicativeExpression() )*
+    Token t;
+    Expression result, left;
+}
+{
+  result = MultiplicativeExpression() ( LOOKAHEAD(2) ( t = "+" | t = "-" ) right = MultiplicativeExpression() { result = new BinaryExpressioin(t.toString(), result, right); })*
+  {return result;}
 }
 
 void MultiplicativeExpression() :
@@ -388,42 +326,22 @@ void UnaryExpression() :
 {}
 {
   ( "+" | "-" ) UnaryExpression()
+|
+  UnaryExpressionNotPlusMinus()
 }
 
-// This production is to determine lookahead only.  The LOOKAHEAD specifications
-// below are not used, but they are there just to indicate that we know about
-// this.
-void CastLookahead() :
+void UnaryExpressionNotPlusMinus() :
 {}
 {
-  LOOKAHEAD(2)
-  "(" PrimitiveType()
+  "!" UnaryExpression()
 |
-  LOOKAHEAD("(" Name() "[")
-  "(" Name() "[" "]"
-|
-  "(" Name() ")" ( "~" | "!" | "(" | <IDENTIFIER> | "this" | "super" | "new" | Literal() )
-}
-
-void PostfixExpression() :
-{}
-{
-  PrimaryExpression() [ "++" | "--" ]
-}
-
-void CastExpression() :
-{}
-{
-  LOOKAHEAD("(" PrimitiveType())
-  "(" Type() ")" UnaryExpression()
-|
-  "(" Type() ")" UnaryExpressionNotPlusMinus()
+  PrimaryExpression()
 }
 
 void PrimaryExpression() :
 {}
 {
-  PrimaryPrefix() ( LOOKAHEAD(2) PrimarySuffix() )*
+  PrimaryPrefix() //( LOOKAHEAD(2) PrimarySuffix() )*
 }
 
 void PrimaryPrefix() :
@@ -431,33 +349,26 @@ void PrimaryPrefix() :
 {
   Literal()
 |
-  "this"
-|
-  "super" "." <IDENTIFIER>
-|
   "(" Expression() ")"
 |
-  AllocationExpression()
-|
-  LOOKAHEAD( ResultType() "." "class" )
-  ResultType() "." "class"
-|
   Name()
+}
+
+void ReadStatement() :
+{}
+{
+  "read" PrimarySuffix()
+}
+
+void WriteStatement() :
+{}
+{
+  "write" PrimarySuffix()
 }
 
 void PrimarySuffix() :
 {}
 {
-  LOOKAHEAD(2)
-  "." "this"
-|
-  LOOKAHEAD(2)
-  "." AllocationExpression()
-|
-  "[" Expression() "]"
-|
-  "." <IDENTIFIER>
-|
   Arguments()
 }
 
@@ -468,27 +379,23 @@ void Literal() :
 |
   <FLOATING_POINT_LITERAL>
 |
-  <CHARACTER_LITERAL>
-|
   <STRING_LITERAL>
 |
   BooleanLiteral()
-|
-  NullLiteral()
 }
 
 void BooleanLiteral() :
 {}
 {
-  "true"
+  "True"
 |
-  "false"
+  "False"
 }
 
 void Arguments() :
 {}
 {
-  "(" [ ArgumentList() ] ")"
+  [ ArgumentList() ] ";"
 }
 
 void ArgumentList() :
@@ -498,20 +405,6 @@ void ArgumentList() :
 }
 
 /*
- * The third LOOKAHEAD specification below is to parse to PrimarySuffix
- * if there is an expression between the "[...]".
- */
-void ArrayDimsAndInits() :
-{}
-{
-  LOOKAHEAD(2)
-  ( LOOKAHEAD(2) "[" Expression() "]" )+ ( LOOKAHEAD(2) "[" "]" )*
-|
-  ( "[" "]" )+ ArrayInitializer()
-}
-
-
-/*
  * Statement syntax follows.
  */
 
@@ -519,66 +412,46 @@ void Statement() :
 {}
 {
   LOOKAHEAD(2)
-  LabeledStatement()
-|
   Block()
 |
   EmptyStatement()
 |
   StatementExpression() ";"
 |
-  SwitchStatement()
-|
   IfStatement()
-|
-  WhileStatement()
-|
-  DoStatement()
 |
   ForStatement()
 |
-  BreakStatement()
+  ReadStatement()
 |
-  ContinueStatement()
+  WriteStatement()
 |
-  ReturnStatement()
-|
-  ThrowStatement()
-|
-  SynchronizedStatement()
-|
-  TryStatement()
-}
-
-void LabeledStatement() :
-{}
-{
-  <IDENTIFIER> ":" Statement()
+  LocalVariableDeclaration() ";"
+//|
+//  BreakStatement()
+//|
+//  ContinueStatement()
 }
 
 void Block() :
 {}
 {
-  "{" ( BlockStatement() )* "}"
+  "begin" ( BlockStatement() )* "end"
 }
 
 void BlockStatement() :
 {}
 {
-  LOOKAHEAD([ "final" ] Type() <IDENTIFIER>)
+  LOOKAHEAD(PrimitiveType() <IDENTIFIER>)
   LocalVariableDeclaration() ";"
 |
   Statement()
-|
-  UnmodifiedClassDeclaration()
-|
-  UnmodifiedInterfaceDeclaration()
 }
 
 void LocalVariableDeclaration() :
 {}
 {
-  [ "final" ] Type() VariableDeclarator() ( "," VariableDeclarator() )*
+  PrimitiveType() VariableDeclarator() ( "," VariableDeclarator() )*
 }
 
 void EmptyStatement() :
@@ -595,34 +468,28 @@ void StatementExpression() :
  */
 {}
 {
-  PreIncrementExpression()
-|
-  PreDecrementExpression()
-|
   PrimaryExpression()
   [
-    "++"
-  |
-    "--"
-  |
     AssignmentOperator() Expression()
   ]
 }
 
-void SwitchStatement() :
+void VariableDeclarator() :
 {}
 {
-  "switch" "(" Expression() ")" "{"
-    ( SwitchLabel() ( BlockStatement() )* )*
-  "}"
+  VariableDeclaratorId() [ "=" VariableInitializer() ]
 }
 
-void SwitchLabel() :
+void VariableDeclaratorId() :
 {}
 {
-  "case" Expression() ":"
-|
-  "default" ":"
+  <IDENTIFIER>
+}
+
+void VariableInitializer() :
+{}
+{
+  Expression()
 }
 
 void IfStatement() :
@@ -633,19 +500,7 @@ void IfStatement() :
  */
 {}
 {
-  "if" "(" Expression() ")" Statement() [ LOOKAHEAD(1) "else" Statement() ]
-}
-
-void WhileStatement() :
-{}
-{
-  "while" "(" Expression() ")" Statement()
-}
-
-void DoStatement() :
-{}
-{
-  "do" Statement() "while" "(" Expression() ")" ";"
+  "if" Expression() "then" Statement() [ LOOKAHEAD(1) "else" Statement() ] "end"
 }
 
 void ForStatement() :
@@ -657,7 +512,6 @@ void ForStatement() :
 void ForInit() :
 {}
 {
-  LOOKAHEAD( [ "final" ] Type() <IDENTIFIER> )
   LocalVariableDeclaration()
 |
   StatementExpressionList()
@@ -675,44 +529,14 @@ void ForUpdate() :
   StatementExpressionList()
 }
 
-void BreakStatement() :
-{}
-{
-  "break" [ <IDENTIFIER> ] ";"
-}
-
-void ContinueStatement() :
-{}
-{
-  "continue" [ <IDENTIFIER> ] ";"
-}
-
-void ReturnStatement() :
-{}
-{
-  "return" [ Expression() ] ";"
-}
-
-void ThrowStatement() :
-{}
-{
-  "throw" Expression() ";"
-}
-
-void SynchronizedStatement() :
-{}
-{
-  "synchronized" "(" Expression() ")" Block()
-}
-
-void TryStatement() :
-/*
- * Semantic check required here to make sure that at least one
- * finally/catch is present.
- */
-{}
-{
-  "try" Block()
-  ( "catch" "(" FormalParameter() ")" Block() )*
-  [ "finally" Block() ]
-}
+//void BreakStatement() :
+//{}
+//{
+//  "break" [ <IDENTIFIER> ] ";"
+//}
+//
+//void ContinueStatement() :
+//{}
+//{
+//  "continue" [ <IDENTIFIER> ] ";"
+//}
