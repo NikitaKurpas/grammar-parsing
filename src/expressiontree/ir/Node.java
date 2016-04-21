@@ -12,6 +12,20 @@ import expressiontree.utils.IRVisitor;
  */
 public abstract class Node {
 
+    private int line, column;
+
+    public Node() {
+    }
+
+    public Node(int line, int column) {
+        this.line = line;
+        this.column = column;
+    }
+
+    public void makeError(String message) {
+        // TODO: make Error class and send the message, line and column there
+    }
+
     public abstract void accept(IRVisitor visitor);
    
     @Override

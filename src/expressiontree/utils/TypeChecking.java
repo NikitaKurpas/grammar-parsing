@@ -16,17 +16,20 @@ public class TypeChecking implements IRVisitor{
 
     @Override
     public void visit(AssignmentStatement st) {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+//        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
     public void visit(BinaryExpression exp) {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        if (!exp.getLeft().getType().equals(exp.getRight().getType())) {
+            exp.setType(Type.ERROR);
+        }
+//        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
     public void visit(BlockOfStatements st) {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+//        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
@@ -36,7 +39,10 @@ public class TypeChecking implements IRVisitor{
 
     @Override
     public void visit(IfStatement st) {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        if (!st.getCondition().getType().equals(Type.BOOLEAN)) {
+            st.getCondition().setType(Type.ERROR);
+        }
+//        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
@@ -74,4 +80,6 @@ public class TypeChecking implements IRVisitor{
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
+    // TODO: create method for type conversion
+    // TODO
 }

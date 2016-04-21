@@ -235,7 +235,7 @@ Statement statement() : {
   )|(
     <WHILE> e=expr() <DO> b1=block() <END> ";" { s=new WhileStatement(e,b1);}
   )|(
-    <FOR> "(" s1=statement() e=expr() ";" s2=statement() ")" <BEGIN> b1=block() <END> ";" { s=new ForStatement(s1,e,s2,b1); }
+    <FOR> <LPAREN> s1=statement() e=expr() ";" s2=statement() <RPAREN> <BEGIN> b1=block() <END> ";" { s=new ForStatement(s1,e,s2,b1); }
   ))
     {return s;}
 }
