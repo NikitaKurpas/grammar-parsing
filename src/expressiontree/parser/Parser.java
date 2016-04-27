@@ -4,12 +4,15 @@ package expressiontree.parser;
 
 import expressiontree.ir.*;
 import expressiontree.utils.*;
+import expressiontree.vm.VirtualMachine;
+
+import java.io.*;
 
 public class Parser implements ParserConstants {
 
     private SymbolTable table = new SymbolTable();
 
-    public static void main(String args[]) {
+    public static void main(String args[]) throws IOException {
         Parser parser;
         if (args.length == 0) {
           System.out.println("Parser Version 1.0:  Reading from standard input . . .");
@@ -31,9 +34,36 @@ public class Parser implements ParserConstants {
         }
         try {
           BlockOfStatements bos = parser.start();
-          IRVisitor visitor = new NicePrintingVisitor();
-          bos.accept(visitor);
-          System.out.println(visitor.toString());
+
+          IRVisitor printer = new NicePrintingVisitor();
+          bos.accept(printer);
+          System.out.println("Pretty print:\u005cn");
+          System.out.println(printer.toString());
+          System.out.println("\u005cn\u005cn");
+
+          IRVisitor typeConverter = new TypeConvertingVisitor();
+          bos.accept(typeConverter);
+
+          IRVisitor typeChecker = new TypeCheckingVisitor();
+          bos.accept(typeChecker);
+
+          IRVisitor bytecodeGenerator = new BytecodeGeneratorVisitor();
+          bos.accept(bytecodeGenerator);
+          System.out.println(bytecodeGenerator.toString());
+          System.out.println("\u005cn\u005cn");
+
+          ByteArrayOutputStream memoryOut = new ByteArrayOutputStream();
+          PrintWriter writer = new PrintWriter(memoryOut);
+          writer.write(bytecodeGenerator.toString());
+          writer.flush();
+          writer.close();
+
+          ByteArrayInputStream memoryIn = new ByteArrayInputStream(memoryOut.toByteArray());
+
+          System.out.println("Starting VM....");
+          VirtualMachine vm = new VirtualMachine(memoryIn);
+          vm.run(parser.table);
+
           System.out.println("Parser Version 1.0:  program parsed successfully.");
         } catch (ParseException e) {
           System.out.println(e.getMessage());
@@ -116,7 +146,7 @@ if (s!=null) bofs.getStatements().add(s);
         throw new ParseException();
       }
       ident = jj_consume_token(IDENTIFIER);
-table.save(new Variable(ident.toString()));
+v = new Variable(ident.toString()); v.setType(Type.convert(t.toString())); table.save(v);
       label_2:
       while (true) {
         switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
@@ -130,7 +160,7 @@ table.save(new Variable(ident.toString()));
         }
         jj_consume_token(COMMA);
         ident = jj_consume_token(IDENTIFIER);
-table.save(new Variable(ident.toString()));
+v = new Variable(ident.toString()); v.setType(Type.convert(t.toString())); table.save(v);
       }
       jj_consume_token(SEMICOLON);
       break;

@@ -3,6 +3,8 @@
 package expressiontree.parser;
 import expressiontree.ir.*;
 import expressiontree.utils.*;
+import expressiontree.vm.VirtualMachine;
+import java.io.*;
 
 /** Token Manager. */
 @SuppressWarnings("unused")public class ParserTokenManager implements ParserConstants {

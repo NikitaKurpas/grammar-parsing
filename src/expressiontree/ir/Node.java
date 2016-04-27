@@ -23,7 +23,7 @@ public abstract class Node {
     }
 
     public void makeError(String message) {
-        // TODO: make Error class and send the message, line and column there
+        throw new RuntimeException("Line " + line + ", column " + column + ": " + message);
     }
 
     public abstract void accept(IRVisitor visitor);

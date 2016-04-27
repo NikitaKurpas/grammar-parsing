@@ -9,12 +9,15 @@ package expressiontree.parser;
 
 import expressiontree.ir.*;
 import expressiontree.utils.*;
+import expressiontree.vm.VirtualMachine;
+
+import java.io.*;
 
 public class Parser {
 
     private SymbolTable table = new SymbolTable();
 
-    public static void main(String args[]) {
+    public static void main(String args[]) throws IOException {
         Parser parser;
         if (args.length == 0) {
           System.out.println("Parser Version 1.0:  Reading from standard input . . .");
@@ -36,9 +39,36 @@ public class Parser {
         }
         try {
           BlockOfStatements bos = parser.start();
-          IRVisitor visitor = new NicePrintingVisitor();
-          bos.accept(visitor);
-          System.out.println(visitor.toString());
+
+          IRVisitor printer = new NicePrintingVisitor();
+          bos.accept(printer);
+          System.out.println("Pretty print:\n");
+          System.out.println(printer.toString());
+          System.out.println("\n\n");
+
+          IRVisitor typeConverter = new TypeConvertingVisitor();
+          bos.accept(typeConverter);
+
+          IRVisitor typeChecker = new TypeCheckingVisitor();
+          bos.accept(typeChecker);
+
+          IRVisitor bytecodeGenerator = new BytecodeGeneratorVisitor();
+          bos.accept(bytecodeGenerator);
+          System.out.println(bytecodeGenerator.toString());
+          System.out.println("\n\n");
+
+          ByteArrayOutputStream memoryOut = new ByteArrayOutputStream();
+          PrintWriter writer = new PrintWriter(memoryOut);
+          writer.write(bytecodeGenerator.toString());
+          writer.flush();
+          writer.close();
+
+          ByteArrayInputStream memoryIn = new ByteArrayInputStream(memoryOut.toByteArray());
+
+          System.out.println("Starting VM....");
+          VirtualMachine vm = new VirtualMachine(memoryIn);
+          vm.run(parser.table);
+
           System.out.println("Parser Version 1.0:  program parsed successfully.");
         } catch (ParseException e) {
           System.out.println(e.getMessage());
@@ -198,24 +228,24 @@ Statement statement() : {
   ((
     ";"
   )|(
-    (t=<INT>|t=<FLOAT>|t=<BOOLEAN>|t=<STRING>) 
-              ident=<IDENTIFIER> { table.save(new Variable(ident.toString()));}
-    ("," ident=<IDENTIFIER> { table.save(new Variable(ident.toString()));} )* ";"
+    (t=<INT>|t=<FLOAT>|t=<BOOLEAN>|t=<STRING>)
+              ident=<IDENTIFIER> { v = new Variable(ident.toString()); v.setType(Type.convert(t.toString())); table.save(v); }
+    ("," ident=<IDENTIFIER> { v = new Variable(ident.toString()); v.setType(Type.convert(t.toString())); table.save(v); } )* ";"
   )|(
-    ident=<IDENTIFIER> "=" e=expr() ";" 
+    ident=<IDENTIFIER> "=" e=expr() ";"
         {
             v = table.load(ident.toString());
             if (v!=null) s = new AssignmentStatement(v, e);
         }
   )|(
-    <PRINT> e=expr() 
-        { 
+    <PRINT> e=expr()
+        {
             s = new PrintStatement();
             ((PrintStatement)s).getExpressions().add(e);
         }
     ("," e=expr() {((PrintStatement)s).getExpressions().add(e);})* ";"
   )|(
-    <READ> ident=<IDENTIFIER> 
+    <READ> ident=<IDENTIFIER>
         {
             s = new ReadStatement();
             v = table.load(ident.toString());
@@ -228,7 +258,7 @@ Statement statement() : {
         }
     )* ";"
   )|(
-    <IF> e=expr() <THEN> b1=block() [<ELSE> b2=block() ]<END> ";" 
+    <IF> e=expr() <THEN> b1=block() [<ELSE> b2=block() ]<END> ";"
         {
             s=new IfStatement(e,b1,b2);
         }

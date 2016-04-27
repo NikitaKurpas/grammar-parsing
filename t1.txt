@@ -9,8 +9,8 @@ s="Abcd";
 print "s(Abcd): ", s;
 
 float d;
-d=3.14159e2;
-print "d(3.14159e2): ", d;
+d=3.14;
+print "d(3.14): ", d;
 
 int n;
 n=-500;
