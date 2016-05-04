@@ -22,12 +22,14 @@ class BytecodeGeneratorVisitor : IRVisitor {
         val e1 = data.pop()
         var op = ""
         when (exp.op) {
+            "||" -> op = "or"
+            "&&" -> op = "and"
             "==" -> op = "eq"
-            "!=" -> op = "not\neq"
+            "!=" -> op = "eq\nnot"
             ">" -> op = "gt"
             "<" -> op = "lt"
-            ">=" -> op = "gt\neq"
-            "<=" -> op = "lt\neq"
+            ">=" -> op = "gt eq"
+            "<=" -> op = "lt eq"
             "+" -> op = "add"
             "-" -> op = "sub"
             "*" -> op = "mul"
@@ -71,7 +73,7 @@ class BytecodeGeneratorVisitor : IRVisitor {
         val label1 = Integer.toString(labelIdx++)
         val label2 = Integer.toString(labelIdx++)
 
-        data.push("$condition\nfjmp $label1\n$thenPart\njmp $label2\nlabel $label1$elsePart\nlabel $label2")
+        data.push("$condition\nfjmp $label1\n$thenPart\njmp $label2\nlabel $label1\n$elsePart\nlabel $label2")
     }
 
     override fun visit(exp: Constant) {
@@ -112,11 +114,23 @@ class BytecodeGeneratorVisitor : IRVisitor {
     }
 
     override fun visit(st: WhileStatement?) {
+        val body = data.pop()
+        val condition = data.pop()
+        val label1 = Integer.toString(labelIdx++)
+        val label2 = Integer.toString(labelIdx++)
 
+        data.push("label $label1\n$condition\nfjmp $label2\n$body\njmp $label1\nlabel $label2")
     }
 
     override fun visit(st: ForStatement?) {
+        val body = data.pop()
+        val update = data.pop()
+        val condition = data.pop()
+        val init = data.pop()
+        val label1 = Integer.toString(labelIdx++)
+        val label2 = Integer.toString(labelIdx++)
 
+        data.push("$init\nlabel $label1\n$condition\nfjmp $label2\n$update\n$body\njmp $label1\nlabel $label2")
     }
 
     override fun toString(): String {

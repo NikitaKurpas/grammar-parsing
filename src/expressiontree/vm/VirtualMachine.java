@@ -8,10 +8,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Scanner;
-import java.util.Stack;
+import java.util.*;
 
 /**
  * Created by nikit on 27-Apr-16
@@ -44,6 +41,8 @@ public class VirtualMachine {
 
     private Stack<Object> values = new Stack<>();
     private Map<String, Object> variables = new HashMap<>();
+    private ArrayList<String> code = new ArrayList<>(150);
+    private Map<String, Integer> labelsToLineNumbers = new HashMap<>();
 
     public VirtualMachine(InputStream in) throws IOException {
         this.reader = new BufferedReader(new InputStreamReader(in));
@@ -51,9 +50,19 @@ public class VirtualMachine {
 
     public void run(SymbolTable table) throws IOException {
         String line;
+        int lineNumber = 0;
         while ((line = reader.readLine()) != null) {
-            if (line.startsWith("push")) {
-                String valueString = line.substring(5);
+            code.add(line);
+            if (line.startsWith("label")) {
+                labelsToLineNumbers.put(line.substring(6), lineNumber);
+            }
+            lineNumber++;
+        }
+        for (int i = 0; i < code.size(); i++) {
+            String s = code.get(i);
+
+            if (s.startsWith("push")) {
+                String valueString = s.substring(5);
                 String type = valueString.substring(0, 1);
                 Object value = null;
                 switch (type) {
@@ -71,14 +80,14 @@ public class VirtualMachine {
                         break;
                 }
                 values.push(value);
-            } else if (line.startsWith("print")) {
-                int count = Integer.parseInt(line.substring(6));
+            } else if (s.startsWith("print")) {
+                int count = Integer.parseInt(s.substring(6));
                 while (count > 0) {
                     System.out.print(values.pop());
                     count--;
                 }
                 System.out.println("");
-            } else if (line.startsWith("add")) {
+            } else if (s.startsWith("add")) {
                 Object val1 = values.pop();
                 Object val2 = values.pop();
 
@@ -91,7 +100,7 @@ public class VirtualMachine {
                 } else if (val1 instanceof Integer && val2 instanceof Integer) {
                     values.push((Integer) val1 + (Integer) val2);
                 }
-            } else if (line.startsWith("sub")) {
+            } else if (s.startsWith("sub")) {
                 Object val1 = values.pop();
                 Object val2 = values.pop();
 
@@ -104,7 +113,7 @@ public class VirtualMachine {
                 } else if (val1 instanceof Integer && val2 instanceof Integer) {
                     values.push((Integer) val1 - (Integer) val2);
                 }
-            } else if (line.startsWith("mul")) {
+            } else if (s.startsWith("mul")) {
                 Object val1 = values.pop();
                 Object val2 = values.pop();
 
@@ -117,7 +126,7 @@ public class VirtualMachine {
                 } else if (val1 instanceof Integer && val2 instanceof Integer) {
                     values.push((Integer) val1 * (Integer) val2);
                 }
-            } else if (line.startsWith("div")) {
+            } else if (s.startsWith("div")) {
                 Object val1 = values.pop();
                 Object val2 = values.pop();
 
@@ -130,7 +139,7 @@ public class VirtualMachine {
                 } else if (val1 instanceof Integer && val2 instanceof Integer) {
                     values.push((Integer) val1 / (Integer) val2);
                 }
-            } else if (line.startsWith("mod")) {
+            } else if (s.startsWith("mod")) {
                 Object val1 = values.pop();
                 Object val2 = values.pop();
 
@@ -143,7 +152,7 @@ public class VirtualMachine {
                 } else if (val1 instanceof Integer && val2 instanceof Integer) {
                     values.push((Integer) val1 % (Integer) val2);
                 }
-            } else if (line.startsWith("uminus")) {
+            } else if (s.equalsIgnoreCase("uminus")) {
                 Object val = values.pop();
 
                 if (val instanceof Integer) {
@@ -151,13 +160,25 @@ public class VirtualMachine {
                 } else if (val instanceof Float) {
                     values.push(-(Float) val);
                 }
-            } else if (line.startsWith("concat")) {
+            } else if (s.equalsIgnoreCase("uplus")) {
+                Object val = values.pop();
+
+                if (val instanceof Integer) {
+                    values.push(+(Integer) val);
+                } else if (val instanceof Float) {
+                    values.push(+(Float) val);
+                }
+            } else if (s.equalsIgnoreCase("not")) {
+                Object val = values.pop();
+
+                values.push(!(Boolean) val);
+            } else if (s.startsWith("concat")) {
                 Object val1 = values.pop();
                 Object val2 = values.pop();
 
                 values.push((String) val1 + (String) val2);
-            } else if (line.startsWith("load")) {
-                Variable var = table.load(line.substring(5));
+            } else if (s.startsWith("load")) {
+                Variable var = table.load(s.substring(5));
                 if (variables.get(var.getName()) ==  null) {
                     if (var.getType().equals(Type.STRING)) {
                         variables.put(var.getName(), "");
@@ -170,8 +191,8 @@ public class VirtualMachine {
                     }
                 }
                 values.push(variables.get(var.getName()));
-            } else if (line.startsWith("save")) {
-                Variable var = table.load(line.substring(5));
+            } else if (s.startsWith("save")) {
+                Variable var = table.load(s.substring(5));
                 Object val = values.pop();
 
                 if (var.getType().equals(Type.FLOAT) && val instanceof Integer) {
@@ -179,8 +200,8 @@ public class VirtualMachine {
                 } else {
                     variables.put(var.getName(), val);
                 }
-            } else if (line.startsWith("read")) {
-                String type = line.substring(5);
+            } else if (s.startsWith("read")) {
+                String type = s.substring(5);
                 Scanner scanner = new Scanner(System.in);
 
                 switch (type) {
@@ -201,7 +222,84 @@ public class VirtualMachine {
                         values.push(scanner.nextBoolean());
                         break;
                 }
+            } else if (s.startsWith("lt")) {
+                Object val1 = values.pop();
+                Object val2 = values.pop();
+
+                int cmpRes = compareNumbers((Number) val1, (Number) val2);
+
+                if (s.contains("eq")) {
+                    values.push(cmpRes == -1 || cmpRes == 0);
+                } else {
+                    values.push(cmpRes == -1);
+                }
+            } else if (s.startsWith("gt")) {
+                Object val1 = values.pop();
+                Object val2 = values.pop();
+
+                int cmpRes = compareNumbers((Number) val1, (Number) val2);
+
+                if (s.contains("eq")) {
+                    values.push(cmpRes == 1 || cmpRes == 0);
+                } else {
+                    values.push(cmpRes == 1);
+                }
+            } else if (s.startsWith("or")) {
+                Object val1 = values.pop();
+                Object val2 = values.pop();
+
+                values.push((Boolean) val1 || (Boolean) val2);
+            } else if (s.startsWith("and")) {
+                Object val1 = values.pop();
+                Object val2 = values.pop();
+
+                values.push((Boolean) val1 && (Boolean) val2);
+            } else if (s.startsWith("eq")) {
+                Object val1 = values.pop();
+                Object val2 = values.pop();
+
+                if (val1 instanceof Number && val2 instanceof Number) {
+                    int cmpRes = compareNumbers((Number) val1, (Number) val2);
+
+                    if (s.contains("eq")) {
+                        values.push(cmpRes == 1 || cmpRes == 0);
+                    } else {
+                        values.push(cmpRes == 1);
+                    }
+                } else {
+                    values.push(((Boolean) val1).equals((Boolean) val2));
+                }
+            } else if (s.startsWith("fjmp")) {
+                Boolean condition = (Boolean) values.pop();
+
+                if (!condition) {
+                    i = labelsToLineNumbers.get(s.substring(5));
+                }
+            } else if (s.startsWith("jmp")) {
+                i = labelsToLineNumbers.get(s.substring(4));
             }
         }
+    }
+
+    private int compareNumbers(Number val1, Number val2) {
+        if (val1 instanceof Float && val2 instanceof Float) {
+            if ((Float) val1 > (Float) val2) return 1;
+            else if ((Float) val1 < (Float) val2) return -1;
+            else return 0;
+        } else if (val1 instanceof Float && val2 instanceof Integer) {
+            if ((Float) val1 > (Integer) val2) return 1;
+            else if ((Float) val1 < (Integer) val2) return -1;
+            else return 0;
+        } else if (val1 instanceof Integer && val2 instanceof Float) {
+            if ((Integer) val1 > (Float) val2) return 1;
+            else if ((Integer) val1 < (Float) val2) return -1;
+            else return 0;
+        } else if (val1 instanceof Integer && val2 instanceof Integer) {
+            if ((Integer) val1 > (Integer) val2) return 1;
+            else if ((Integer) val1 < (Integer) val2) return -1;
+            else return 0;
+        }
+
+        return 0;
     }
 }

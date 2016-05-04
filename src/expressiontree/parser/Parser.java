@@ -63,6 +63,8 @@ public class Parser implements ParserConstants {
           System.out.println("Starting VM....");
           VirtualMachine vm = new VirtualMachine(memoryIn);
           vm.run(parser.table);
+          System.out.println("Stopping VM....");
+
 
           System.out.println("Parser Version 1.0:  program parsed successfully.");
         } catch (ParseException e) {
