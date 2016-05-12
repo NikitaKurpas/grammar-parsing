@@ -1,0 +1,4 @@
+int a;
+if (a + 1) then
+ print "2";
+end;

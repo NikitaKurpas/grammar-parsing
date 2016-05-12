@@ -37,7 +37,8 @@ public class IfStatement extends Statement {
     public void accept(IRVisitor visitor) {
         condition.accept(visitor);
         thenPart.accept(visitor);
-        elsePart.accept(visitor);
+        if (elsePart != null)
+            elsePart.accept(visitor);
 
         visitor.visit(this);
     }

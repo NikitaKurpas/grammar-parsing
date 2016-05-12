@@ -1,0 +1,17 @@
+print "Input a";
+int a;
+read a;
+
+print "Input b";
+int b;
+read b;
+
+if (a > b) then
+    print "a is more then b";
+else
+    print "a is less then b";
+end;
+
+print "a = ", a, " and b = ", b;
+
+print "Program finished";
